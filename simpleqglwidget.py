@@ -24,7 +24,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         super().__init__(parent)
         self.setMinimumSize(640, 480)
 
-    def initializeGL(self):
+    def initializeGL(self) -> None:
 
         glClearDepth(1.0)
         glDepthFunc(GL_LESS)
@@ -50,6 +50,15 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         glVertex3f(2.6, 0.0, 0.0)
         glVertex3f(2.9, -1.2, 0.0)
         glEnd()
+
+        glColor3f(0.0, 1.5, 1.0)
+        glBegin( GL_QUADS )
+        glVertex2f( -0.5, -0.5 )
+        glVertex2f( 0.5, -0.5 )
+        glVertex2f( 0.5, 0.5 )
+        glVertex2f( -0.5, 0.5 )
+        glEnd();
+
 
         glFlush()
 
