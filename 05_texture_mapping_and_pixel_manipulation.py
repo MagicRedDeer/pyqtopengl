@@ -49,11 +49,38 @@ class Texture(object):
         checkerboard = np.kron(checker, np.ones((8, 8), dtype='uint8'))
         image = np.zeros((*np.shape, 3), dtype='uint8')
         image[:, :, 2] = checkerboard
+        cv2.imshow('checkerboard', image)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
         return self.loadTextureFromNumpyRGBImage(image)
+
+    def freeTexture(self):
+        # Delete Texture
+        if self.tid != 0:
+            gl.glDeleteTextures(1, self.tid)
+            self.tid = 0
+        self.height = self.width = 0
+
+    def render(self, x, y):
+        if self.tid != 0:
+            gl.glLoadIdentity()
+            gl.glTranslatef(x, y, 0)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+
+            # Render texture quad
+            gl.glBegin(gl.GL_QUADS)
+            gl.glTexCoord2f(0, 0)
+            gl.glVertex2f(0, 0)
+            gl.glTexCoord2f(1, 0)
+            gl.glVertex2f(self.width, 0)
+            gl.glTexCoord2f(1, 1)
+            gl.glVertex2f(self.width, self.height)
+            gl.glTexCoord2f(0, 1)
+            gl.glVertex2f(0, self.height)
+            gl.glEnd()
 
 
 class MainWindow(QtWidgets.QWidget):
-    speed = 16
 
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -64,14 +91,6 @@ class MainWindow(QtWidgets.QWidget):
         self.setLayout(self.mainLayout)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent):
-        if event.key() == QtCore.Qt.Key_W:
-            self.widget.moveCameraY(-self.speed)
-        elif event.key() == QtCore.Qt.Key_S:
-            self.widget.moveCameraY(self.speed)
-        elif event.key() == QtCore.Qt.Key_A:
-            self.widget.moveCameraX(-self.speed)
-        elif event.key() == QtCore.Qt.Key_D:
-            self.widget.moveCameraX(self.speed)
         super().keyPressEvent(event)
 
 
@@ -80,9 +99,6 @@ class GLWidget(QtWidgets.QOpenGLWidget):
     SCREEN_WIDTH = 640
     SCREEN_HEIGHT = 480
     SCREEN_FPS = 60
-
-    camera_x = 0
-    camera_y = 0
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -116,6 +132,8 @@ class GLWidget(QtWidgets.QOpenGLWidget):
     def initializeGL(self):
         print(self.getOpenglInfo())
 
+        self.texture = Texture()
+
         # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
         gl.glLoadIdentity()
@@ -124,6 +142,8 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         # Initialize modelview matrix
         gl.glMatrixMode(gl.GL_MODELVIEW)
         gl.glLoadIdentity()
+
+        # initializeGL clear color
         gl.glClearColor(0, 0, 0, 1)
         gl.glEnable(gl.GL_TEXTURE_2D)
 
@@ -141,47 +161,10 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         gl.glVertex2f(-self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
 
     def paintGL(self):
-        gl.glViewport(0, 0, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
-
-        self.setCamera()
-
-        # clear color buffer
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-
-        # Pop default matrix onto current matrix
-        gl.glMatrixMode(gl.GL_MODELVIEW)
-        gl.glPopMatrix()
-
-        gl.glPushMatrix()
-
-        # red quad
-        gl.glTranslatef(self.SCREEN_WIDTH/2, self.SCREEN_HEIGHT/2, 0)
-        gl.glBegin(gl.GL_QUADS)
-        gl.glColor3f(1, 0, 0)
-        self.quad_vertices()
-        gl.glEnd()
-
-        # green quad
-        gl.glTranslatef(self.SCREEN_WIDTH, 0, 0)
-        gl.glBegin(gl.GL_QUADS)
-        gl.glColor3f(0, 1, 0)
-        self.quad_vertices()
-        gl.glEnd()
-
-        # blue quad
-        gl.glTranslatef(0, self.SCREEN_HEIGHT, 0)
-        gl.glBegin(gl.GL_QUADS)
-        gl.glColor3f(0, 0, 1)
-        self.quad_vertices()
-        gl.glEnd()
-
-        # yellow quad
-        gl.glTranslatef(-self.SCREEN_WIDTH, 0, 0)
-        gl.glBegin(gl.GL_QUADS)
-        gl.glColor3f(1, 1, 0)
-        self.quad_vertices()
-        gl.glEnd()
-
+        x = (self.SCREEN_WIDTH - self.texture.width)/2
+        y = (self.SCREEN_HEIGHT - self.texture.height)/2
+        self.texture.render(x, y)
         gl.glFlush()
 
     def moveCameraX(self, value):
