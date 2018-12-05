@@ -133,6 +133,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         print(self.getOpenglInfo())
 
         self.texture = Texture()
+        self.texture.loadMedia()
 
         # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
