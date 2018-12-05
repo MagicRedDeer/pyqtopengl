@@ -116,6 +116,8 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
         gl.glColor3f(1.0, 1.5, 0.0)
 
+        gl.glViewport(0, 0, self.SCREEN_WIDTH//2, self.SCREEN_HEIGHT//2)
+
         if self.color_mode == self.COLOR_MODE_CYAN:
             gl.glBegin(gl.GL_QUADS)
             gl.glColor3f(0, 1, 1)
