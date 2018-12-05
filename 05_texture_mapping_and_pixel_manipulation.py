@@ -1,18 +1,64 @@
 from PySide2 import QtWidgets, QtGui, QtCore
+import cv2
+import numpy as np
 import OpenGL.GL as gl
 import OpenGL.GLU as glu
 
 
-class MainWindow(QtWidgets.QWidget):
+class Texture(object):
 
+    def __init__(self):
+        self.tid = 0
+        self.width = 0
+        self.height = 0
+
+    def loadTextureFromNumpyRGBImage(self, image: np.array):
+        self.width = image.shape[0]
+        self.height = image.shape[1]
+
+        assert(image.shape[3] == 3)
+        assert(image.dtype == np.dtype('uint8'))
+
+        self.tid = gl.glGenTextures(1)
+        gl.glBindTexture(gl.GL_TEXTURE2D, self.tid)
+        gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, self.tid)
+
+        gl.glTexImage2D(
+                gl.GL_TEXTURE_2D, 0, gl.GL_BGR, self.width, self.height, 0,
+                gl.GL_BGR, gl.GL_UNSIGNED_BYTE, image)
+
+        gl.glTexParameteri(
+                gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(
+                gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+
+        gl.glBindTexture(gl.GL_TEXTURE_2D, None)
+
+        error = gl.glGetError()
+        if error != gl.GL_NO_ERROR:
+            print('Error loading pixels from image! %s' %
+                  glu.gluErrorString(error))
+            return False
+
+        return True
+
+    def loadMedia(self):
+        first = [1, 1, 0, 0] * 8
+        second = [0, 0, 1, 1] * 8
+        checker = [first, first, second, second] * 8
+        checkerboard = np.kron(checker, np.ones((8, 8), dtype='uint8'))
+        image = np.zeros((*np.shape, 3), dtype='uint8')
+        image[:, :, 2] = checkerboard
+        return self.loadTextureFromNumpyRGBImage(image)
+
+
+class MainWindow(QtWidgets.QWidget):
     speed = 16
 
     def __init__(self):
         super(MainWindow, self).__init__()
         self.button = QtWidgets.QPushButton('Test', self)
-
         self.widget = GLWidget(self)
-
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)
         self.setLayout(self.mainLayout)
@@ -70,38 +116,23 @@ class GLWidget(QtWidgets.QOpenGLWidget):
     def initializeGL(self):
         print(self.getOpenglInfo())
 
-        # initialize the projection matrix
+        # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
         gl.glLoadIdentity()
-        gl.glOrtho(0.0, self.SCREEN_WIDTH, self.SCREEN_HEIGHT, 0, -1, 1)
+        gl.glOrtho(0, self.SCREEN_WIDTH, self.SCREEN_HEIGHT, 0, -1, 1)
 
-        # initialize the modelview matrix
+        # Initialize modelview matrix
         gl.glMatrixMode(gl.GL_MODELVIEW)
         gl.glLoadIdentity()
-
-        # Save the modelview matrix
-        gl.glPushMatrix()
-
-        # Initialize clear color
         gl.glClearColor(0, 0, 0, 1)
+        gl.glEnable(gl.GL_TEXTURE_2D)
 
         error = gl.glGetError()
-        if not error == gl.GL_NO_ERROR:
+        if error != gl.GL_NO_ERROR:
             print("Error Iniitalizing OpenGL! %s" % glu.gluErrorString(error))
             return False
 
         return True
-
-    def setCamera(self):
-        gl.glMatrixMode(gl.GL_MODELVIEW)
-        gl.glPopMatrix()
-
-        # move the camera
-        gl.glTranslatef(-self.camera_x, -self.camera_y, 0)
-        self.camera_x, self.camera_y = 0, 0
-
-        # save default matrix with camera translation
-        gl.glPushMatrix()
 
     def quad_vertices(self):
         gl.glVertex2f(-self.SCREEN_WIDTH//4, -self.SCREEN_HEIGHT//4)
