@@ -47,11 +47,13 @@ class Texture(object):
         second = [0, 0, 1, 1] * 8
         checker = [first, first, second, second] * 8
         checkerboard = np.kron(checker, np.ones((8, 8), dtype='uint8'))
-        image = np.zeros((*np.shape, 3), dtype='uint8')
-        image[:, :, 2] = checkerboard
-        cv2.imshow('checkerboard', image)
+        image = np.zeros(
+                (checkerboard.shape[0], checkerboard.shape[1], 3),
+                dtype='uint8')
+        cv2.imshow('checkerboard', checkerboard)
         cv2.waitKey()
         cv2.destroyAllWindows()
+        image[:, :, 2] = checkerboard
         return self.loadTextureFromNumpyRGBImage(image)
 
     def freeTexture(self):
