@@ -13,26 +13,29 @@ class Texture(object):
         self.height = 0
 
     def loadTextureFromNumpyRGBImage(self, image: np.array):
-        self.width = image.shape[0]
-        self.height = image.shape[1]
+        self.height = image.shape[0]
+        self.width = image.shape[1]
 
-        assert(image.shape[3] == 3)
+        assert(image.shape[2] == 3)
         assert(image.dtype == np.dtype('uint8'))
 
+        cv2.imshow('checkerboard', image)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
+
         self.tid = gl.glGenTextures(1)
-        gl.glBindTexture(gl.GL_TEXTURE2D, self.tid)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
         gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, self.tid)
 
-        gl.glTexImage2D(
-                gl.GL_TEXTURE_2D, 0, gl.GL_BGR, self.width, self.height, 0,
-                gl.GL_BGR, gl.GL_UNSIGNED_BYTE, image)
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGB, self.width,
+                        self.height, 0, gl.GL_RGB, gl.GL_UNSIGNED_BYTE, image)
 
         gl.glTexParameteri(
                 gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
         gl.glTexParameteri(
                 gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
 
-        gl.glBindTexture(gl.GL_TEXTURE_2D, None)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
         error = gl.glGetError()
         if error != gl.GL_NO_ERROR:
@@ -43,17 +46,15 @@ class Texture(object):
         return True
 
     def loadMedia(self):
-        first = [1, 1, 0, 0] * 8
-        second = [0, 0, 1, 1] * 8
+        first = [0, 0, 1, 1] * 8
+        second = [1, 1, 0, 0] * 8
         checker = [first, first, second, second] * 8
         checkerboard = np.kron(checker, np.ones((8, 8), dtype='uint8'))
         image = np.zeros(
                 (checkerboard.shape[0], checkerboard.shape[1], 3),
                 dtype='uint8')
-        cv2.imshow('checkerboard', checkerboard)
-        cv2.waitKey()
-        cv2.destroyAllWindows()
-        image[:, :, 2] = checkerboard
+        image[:, :, 0] = image[:, :, 1] = image[:, :, 2] = checkerboard.astype(
+                'uint8') * 255
         return self.loadTextureFromNumpyRGBImage(image)
 
     def freeTexture(self):
