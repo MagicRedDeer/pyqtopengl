@@ -19,19 +19,16 @@ class Texture(object):
         self.height = 0
         self.pixels = None
 
-    def loadTextureFromNumpyRGBImage(self, image: np.array):
+    def loadTextureFromNP(self, image: np.array, pixel_type):
         self.height = image.shape[0]
         self.width = image.shape[1]
-
-        assert(image.shape[2] == 3)
-        assert(image.dtype == np.dtype('uint8'))
 
         self.tid = gl.glGenTextures(1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
         gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, self.tid)
 
-        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGB, self.width,
-                        self.height, 0, gl.GL_BGR, gl.GL_UNSIGNED_BYTE, image)
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, pixel_type, self.width,
+                        self.height, 0, pixel_type, gl.GL_UNSIGNED_BYTE, image)
 
         gl.glTexParameteri(
                 gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
@@ -48,15 +45,27 @@ class Texture(object):
 
         return True
 
-    def loadTextureFromFile(self, path):
-        image = cv2.imread(path)
+    def loadTextureFromNP_BGR(self, image: np.array):
+        assert(image.shape[2] == 3)
+        assert(image.dtype == np.dtype('uint8'))
+        return self.loadTextureFromNP(image, gl.GL_BGR)
+
+    def loadTextureFromNP_BGRA(self, image: np.array):
+        assert(image.shape[2] == 4)
+        assert(image.dtype == np.dtype('uint8'))
+        return self.loadTextureFromNP(image, gl.GL_BGRA)
+
+    def loadTextureFromFile(self, path, with_alpha=True):
+        image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        image = cv2.imread(path, cv2.IMREAD_COLOR)
+
         if image is None:
-            print('Unable to read image %s' % path, file=sys.strderr)
+            print('Unable to read image %s' % path, file=sys.stderr)
             return False
-        texture_loaded = self.loadTextureFromNumpyRGBImage(image)
+        texture_loaded = self.loadTextureFromNP_BGR(image)
 
         if not texture_loaded:
-            print('Unable to load image %s' % path, file=sys.strderr)
+            print('Unable to load image %s' % path, file=sys.stderr)
 
         return texture_loaded
 
@@ -77,10 +86,16 @@ class Texture(object):
                 os.path.join(
                     os.path.dirname(__file__), 'images', 'circle.png')):
             print('Unable to load circle texture', file=sys.stderr)
+
         self.lock()
-        target_color = [255, 255, 255, 0]
-        mask = self.pixels == target_color
-        result = cv2.bitwise_and(self.pixels, self.pixels, mask=mask)
+
+        cv2.imshow('pixels', self.pixels)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
+
+        self.unlock()
+
+        return True
 
     def freeTexture(self):
         # Delete Texture
@@ -130,7 +145,7 @@ class Texture(object):
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
             self.pixels = gl.glGetTexImage(
                     gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
             return True
         return False
 
@@ -230,12 +245,6 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
         self.texture.render(self.SCREEN_WIDTH/2-self.texture.width/2,
                             self.SCREEN_HEIGHT/2-self.texture.height/2)
-
-        self.texture.render(0, 0, clips[0])
-        self.texture.render(self.SCREEN_WIDTH - clips[1].w, 0, clips[1])
-        self.texture.render(0, self.SCREEN_HEIGHT - clips[2].h, clips[2])
-        self.texture.render(self.SCREEN_WIDTH - clips[3].w,
-                            self.SCREEN_HEIGHT - clips[3].h, clips[3])
 
         gl.glFlush()
 
