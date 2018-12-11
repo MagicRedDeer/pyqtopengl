@@ -18,8 +18,9 @@ class Texture(object):
         self.width = 0
         self.height = 0
         self.pixels = None
+        self.channels = 0
 
-    def loadTextureFromNP(self, image: np.array, pixel_type):
+    def loadTextureFromNP(self, image: np.array, pixel_type, store_type):
         self.height = image.shape[0]
         self.width = image.shape[1]
 
@@ -27,7 +28,7 @@ class Texture(object):
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
         gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, self.tid)
 
-        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, pixel_type, self.width,
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, store_type, self.width,
                         self.height, 0, pixel_type, gl.GL_UNSIGNED_BYTE, image)
 
         gl.glTexParameteri(
@@ -46,23 +47,24 @@ class Texture(object):
         return True
 
     def loadTextureFromNP_BGR(self, image: np.array):
-        assert(image.shape[2] == 3)
+        self.channels = image.shape[2] if len(image.shape) > 2 else 1
+        assert(self.channels == 3)
         assert(image.dtype == np.dtype('uint8'))
-        return self.loadTextureFromNP(image, gl.GL_BGR)
+        return self.loadTextureFromNP(image, gl.GL_BGR, gl.GL_RGB)
 
     def loadTextureFromNP_BGRA(self, image: np.array):
-        assert(image.shape[2] == 4)
+        self.channels = image.shape[2] if len(image.shape) > 2 else 1
+        assert(self.channels == 4)
         assert(image.dtype == np.dtype('uint8'))
-        return self.loadTextureFromNP(image, gl.GL_BGRA)
+        return self.loadTextureFromNP(image, gl.GL_BGRA, gl.GL_RGBA)
 
     def loadTextureFromFile(self, path, with_alpha=True):
         image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        image = cv2.imread(path, cv2.IMREAD_COLOR)
 
         if image is None:
             print('Unable to read image %s' % path, file=sys.stderr)
             return False
-        texture_loaded = self.loadTextureFromNP_BGR(image)
+        texture_loaded = self.loadTextureFromNP_BGRA(image)
 
         if not texture_loaded:
             print('Unable to load image %s' % path, file=sys.stderr)
@@ -89,9 +91,16 @@ class Texture(object):
 
         self.lock()
 
-        cv2.imshow('pixels', self.pixels)
-        cv2.waitKey()
-        cv2.destroyAllWindows()
+        alpha = self.pixels[:, :, 3].copy()
+
+        for x in range(10, min(self.width//2, self.height//2), 10):
+            self.pixels = cv2.rectangle(
+                    self.pixels,
+                    (self.height//2-x, self.width//2-x),
+                    (self.height//2+x, self.width//2+x),
+                    (255, 0, 0, 255), 2)
+
+        self.pixels = cv2.bitwise_and(self.pixels, self.pixels, mask=alpha)
 
         self.unlock()
 
@@ -144,7 +153,9 @@ class Texture(object):
         if self.pixels is None and self.tid != 0:
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
             self.pixels = gl.glGetTexImage(
-                    gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
+                    gl.GL_TEXTURE_2D, 0, gl.GL_BGRA, gl.GL_UNSIGNED_BYTE)
+            self.pixels = np.frombuffer(self.pixels, dtype='uint8').reshape(
+                    self.width, self.height, self.channels)
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
             return True
         return False
@@ -152,9 +163,10 @@ class Texture(object):
     def unlock(self):
         if self.pixels is not None and self.tid != 0:
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
-            self.pixels = self.glTexSubImage2D(
+            gl.glTexSubImage2D(
                     gl.GL_TEXTURE_2D, 0, 0, 0, self.width, self.height,
-                    gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, self.pixels)
+                    gl.GL_BGRA, gl.GL_UNSIGNED_BYTE, self.pixels)
+            self.pixels = np.array(self.pixels)
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
 
