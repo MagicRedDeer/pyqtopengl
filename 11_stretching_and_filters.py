@@ -21,6 +21,7 @@ class Texture(object):
         self.channels = 0
         self.image_width = 0
         self.image_height = 0
+        self.filtering = gl.GL_LINEAR
 
     def loadTextureFromNP(self):
         if self.tid == 0 and self.pixels is not None:
@@ -36,9 +37,9 @@ class Texture(object):
                             gl.GL_UNSIGNED_BYTE, self.pixels)
 
             gl.glTexParameteri(
-                    gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+                    gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, self.filtering)
             gl.glTexParameteri(
-                    gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+                    gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, self.filtering)
 
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
@@ -97,8 +98,8 @@ class Texture(object):
             self.pixel_type = gl.GL_BGRA
             self.store_type = gl.GL_RGBA
 
-        self.image_width = self.pixels.shape[0]
-        self.image_height = self.pixels.shape[1]
+        self.image_height = self.pixels.shape[0]
+        self.image_width = self.pixels.shape[1]
 
         self.pixels = cv2.copyMakeBorder(
                 self.pixels,
@@ -137,6 +138,7 @@ class Texture(object):
 
     def render(self, x, y, clip: LFRect = None, stretch: LFRect = None):
         if self.tid != 0:
+            self.applyTextureFiltering()
             gl.glLoadIdentity()
             gl.glTranslatef(x, y, 0)
 
@@ -153,7 +155,7 @@ class Texture(object):
                 quad_width, quad_height = clip.w, clip.h
 
             if stretch is not None:
-                self.quad_width, self.quad_height = stretch.w, stretch.h
+                quad_width, quad_height = stretch.w, stretch.h
 
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
 
@@ -194,6 +196,16 @@ class Texture(object):
             self.pixels = np.array(self.pixels)
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
+    def applyTextureFiltering(self):
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+        gl.glTexParameteri(
+                gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
+                self.filtering)
+        gl.glTexParameteri(
+                gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER,
+                self.filtering)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+
 
 class MainWindow(QtWidgets.QWidget):
 
@@ -207,27 +219,13 @@ class MainWindow(QtWidgets.QWidget):
 
     def keyPressEvent(self, event: QtGui.QKeyEvent):
         if event.key() == QtCore.Qt.Key_Q:
-            print('Q')
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.widget.texture.tid)
 
-            if self.widget.filtering != gl.GL_LINEAR:
-                gl.glTexParameteri(
-                        gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
-                        gl.GL_LINEAR)
-                gl.glTexParameteri(
-                        gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER,
-                        gl.GL_LINEAR)
-                self.widget.filtering = gl.GL_LINEAR
+            if self.widget.texture.filtering != gl.GL_LINEAR:
+                self.widget.texture.filtering = gl.GL_LINEAR
+                print('linear filtering')
             else:
-                gl.glTexParameteri(
-                        gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
-                        gl.GL_NEAREST)
-                gl.glTexParameteri(
-                        gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER,
-                        gl.GL_NEAREST)
-                self.widget.filtering = gl.GL_LINEAR
-
-            gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+                self.widget.texture.filtering = gl.GL_NEAREST
+                print('nearest filtering')
 
         super().keyPressEvent(event)
 
@@ -239,11 +237,10 @@ class GLWidget(QtWidgets.QOpenGLWidget):
     SCREEN_FPS = 60
 
     stretch_rect = LFRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-    filtering = gl.GL_LINEAR
 
     def __init__(self, parent):
         super().__init__(parent)
-        # self.start_timer()
+        self.start_timer()
 
     def start_timer(self):
         self.timer = QtCore.QTimer(self)
@@ -311,8 +308,9 @@ class GLWidget(QtWidgets.QOpenGLWidget):
     def paintGL(self):
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
-        self.texture.render(self.SCREEN_WIDTH/2-self.texture.width/2,
-                            self.SCREEN_HEIGHT/2-self.texture.height/2)
+        self.texture.render(0,
+                            0,
+                            stretch=self.stretch_rect)
 
         gl.glFlush()
 
