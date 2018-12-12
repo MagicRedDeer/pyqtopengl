@@ -121,12 +121,6 @@ class Texture(object):
 
         return self.loadTextureFromNP()
 
-    def loadMedia(self):
-        if not self.loadTextureFromFile(os.path.join(
-                os.path.dirname(__file__), 'images', 'arrow.png')):
-            print('Failed to load media', file=sys.stderr)
-        return True
-
     def freeTexture(self):
         # Delete Texture
         if self.tid != 0:
@@ -244,6 +238,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.texture = Texture()
         self.start_timer()
 
     def update(self):
@@ -277,11 +272,16 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         )
         return info
 
+    def loadMedia(self):
+        if not self.texture.loadTextureFromFile(os.path.join(
+                os.path.dirname(__file__), 'images', 'arrow.png')):
+            print('Failed to load media', file=sys.stderr)
+        return True
+
     def initializeGL(self):
         print(self.getOpenglInfo())
 
-        self.texture = Texture()
-        self.texture.loadMedia()
+        self.loadMedia()
 
         # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
