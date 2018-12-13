@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import OpenGL.GL as gl
 import OpenGL.GLU as glu
-import OpenGL.extensions as glext
 import sys
 import os
 from collections import namedtuple
@@ -23,6 +22,7 @@ class Texture(object):
         self.image_width = 0
         self.image_height = 0
         self.filtering = gl.GL_LINEAR
+        self.default_texture_wrap = gl.GL_REPEAT
 
     def loadTextureFromNP(self):
         if self.tid == 0 and self.pixels is not None:
@@ -37,10 +37,7 @@ class Texture(object):
                             self.height, 0, self.pixel_type,
                             gl.GL_UNSIGNED_BYTE, self.pixels)
 
-            gl.glTexParameteri(
-                    gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, self.filtering)
-            gl.glTexParameteri(
-                    gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, self.filtering)
+            self.applyTextureFiltering(bind=False)
 
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
@@ -108,7 +105,7 @@ class Texture(object):
                 self.power_of_two(self.pixels.shape[0]) - self.pixels.shape[0],
                 0,
                 self.power_of_two(self.pixels.shape[1]) - self.pixels.shape[1],
-                cv2.BORDER_CONSTANT, value=0)
+                cv2.BORDER_CONSTANT, value=(255, 0, 0))
 
         return True
 
@@ -131,8 +128,7 @@ class Texture(object):
         self.height = self.width = 0
         self.image_height = self.image_height = 0
 
-    def render(self, x, y, clip: LFRect = None, stretch: LFRect = None,
-               degrees=0):
+    def render(self, x, y, clip: LFRect = None):
         if self.tid != 0:
             self.applyTextureFiltering()
 
@@ -148,30 +144,20 @@ class Texture(object):
                 tex_bottom = (clip.y + clip.h) / self.height
                 quad_width, quad_height = clip.w, clip.h
 
-            if stretch is not None:
-                quad_width, quad_height = stretch.w, stretch.h
-
-            gl.glLoadIdentity()
             gl.glTranslatef(x + quad_width/2, y + quad_height/2, 0)
-            gl.glRotatef(degrees, 0, 0, 1)
 
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
 
             # Render texture quad
             gl.glBegin(gl.GL_QUADS)
-
             gl.glTexCoord2f(tex_left, tex_top)
             gl.glVertex2f(-quad_width/2, -quad_height/2)
-
             gl.glTexCoord2f(tex_right, tex_top)
             gl.glVertex2f(quad_width/2, -quad_height/2)
-
             gl.glTexCoord2f(tex_right, tex_bottom)
             gl.glVertex2f(quad_width/2, quad_height/2)
-
             gl.glTexCoord2f(tex_left, tex_bottom)
             gl.glVertex2f(-quad_width/2, quad_height/2)
-
             gl.glEnd()
 
     def lock(self):
@@ -194,15 +180,23 @@ class Texture(object):
             self.pixels = np.array(self.pixels)
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
-    def applyTextureFiltering(self):
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+    def applyTextureFiltering(self, bind=True):
+        if bind:
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
         gl.glTexParameteri(
                 gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
                 self.filtering)
         gl.glTexParameteri(
                 gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER,
                 self.filtering)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+        gl.glTexParameteri(
+                gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S,
+                self.default_texture_wrap)
+        gl.glTexParameteri(
+                gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
+                self.default_texture_wrap)
+        if bind:
+            gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
 
 class MainWindow(QtWidgets.QWidget):
@@ -218,35 +212,55 @@ class MainWindow(QtWidgets.QWidget):
     def keyPressEvent(self, event: QtGui.QKeyEvent):
         if event.key() == QtCore.Qt.Key_Q:
 
-            if self.widget.texture.filtering != gl.GL_LINEAR:
-                self.widget.texture.filtering = gl.GL_LINEAR
-                print('linear filtering')
-            else:
-                self.widget.texture.filtering = gl.GL_NEAREST
-                print('nearest filtering')
+            self.widget.wrap_type += 1
 
         super().keyPressEvent(event)
 
 
 class GLWidget(QtWidgets.QOpenGLWidget):
 
-    SCREEN_WIDTH = 640
-    SCREEN_HEIGHT = 480
-    SCREEN_FPS = 60
-
-    stretch_rect = LFRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-    angle = 0
+    SCREEN_WIDTH = 800
+    SCREEN_HEIGHT = 600
+    SCREEN_FPS = 600
 
     def __init__(self, parent):
         super().__init__(parent)
         self.texture = Texture()
+        self.texX = self.texY = 0
+        self._wraptype = 0
         self.start_timer()
 
     def update(self):
-        self.angle += 360 / self.SCREEN_FPS
-        if self.angle > 360:
-            self.angle -= 360
+        self.texX += 1
+        self.texY += 1
+
+        if self.texX >= self.texture.width:
+            self.texX = 0
+        if self.texY >= self.texture.height:
+            self.texY = 0
+
         super().update()
+
+    @property
+    def wrap_type(self):
+        return self._wraptype
+
+    @wrap_type.setter
+    def wrap_type(self, value):
+        self._wraptype = value
+        if self._wraptype >= 5:
+            self._wraptype = 0
+
+        if self._wraptype == 0:
+            self.texture.default_texture_wrap = gl.GL_REPEAT
+        elif self._wraptype == 1:
+            self.texture.default_texture_wrap = gl.GL_CLAMP
+        elif self._wraptype == 2:
+            self.texture.default_texture_wrap = gl.GL_CLAMP_TO_BORDER
+        elif self._wraptype == 3:
+            self.texture.default_texture_wrap = gl.GL_CLAMP_TO_EDGE
+        elif self._wraptype == 4:
+            self.texture.default_texture_wrap = gl.GL_MIRRORED_REPEAT
 
     def start_timer(self):
         self.timer = QtCore.QTimer(self)
@@ -269,20 +283,18 @@ class GLWidget(QtWidgets.QOpenGLWidget):
             gl.glGetString(gl.GL_VENDOR),
             gl.glGetString(gl.GL_RENDERER),
             gl.glGetString(gl.GL_VERSION),
-            gl.glGetString(gl.GL_SHADING_LANGUAGE_VERSION),
+            gl.glGetString(gl.GL_SHADING_LANGUAGE_VERSION)
         )
         return info
 
     def loadMedia(self):
         if not self.texture.loadTextureFromFile(os.path.join(
-                os.path.dirname(__file__), 'images', 'arrow.png')):
+                os.path.dirname(__file__), 'images', 'tapestry.bmp')):
             print('Failed to load media', file=sys.stderr)
         return True
 
     def initializeGL(self):
         print(self.getOpenglInfo())
-
-        print(glext.AVAILABLE_GLU_EXTENSIONS, glext.AVAILABLE_GL_EXTENSIONS)
 
         self.loadMedia()
 
@@ -319,11 +331,34 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         gl.glVertex2f(-self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
 
     def paintGL(self):
+
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
-        self.texture.render(self.SCREEN_WIDTH/2-self.texture.image_width/2,
-                            self.SCREEN_HEIGHT/2-self.texture.image_height/2,
-                            degrees=self.angle)
+        texture_right = self.SCREEN_WIDTH / self.texture.width
+        texture_bottom = self.SCREEN_HEIGHT / self.texture.width
+
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture.tid)
+
+        self.texture.applyTextureFiltering(bind=False)
+
+        gl.glMatrixMode(gl.GL_TEXTURE)
+        gl.glLoadIdentity()
+
+        gl.glTranslatef(self.texX / self.texture.width,
+                        self.texY / self.texture.height, 0)
+
+        gl.glBegin(gl.GL_QUADS)
+
+        gl.glTexCoord2f(0, 0)
+        gl.glVertex2f(0, 0)
+        gl.glTexCoord2f(texture_right, 0)
+        gl.glVertex2f(self.SCREEN_WIDTH, 0)
+        gl.glTexCoord2f(texture_right, texture_bottom)
+        gl.glVertex2f(self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
+        gl.glTexCoord2f(0, texture_bottom)
+        gl.glVertex2f(0, self.SCREEN_HEIGHT)
+
+        gl.glEnd()
 
         gl.glFlush()
 
