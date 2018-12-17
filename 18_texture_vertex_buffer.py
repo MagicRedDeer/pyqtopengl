@@ -7,6 +7,7 @@ import sys
 import os
 from collections import namedtuple
 import array
+from ctypes import c_void_p
 
 
 LFRect = namedtuple('LFRect', 'x y w h')
@@ -212,7 +213,7 @@ class Texture(object):
                 tex_bottom = (clip.y + clip.h) / self.height
                 quad_width, quad_height = clip.w, clip.h
 
-            gl.glTranslatef(x + quad_width/2, y + quad_height/2, 0)
+            gl.glTranslatef(x, y, 0)
 
             vData = BufferData()
             vData.append(LVertexData(
@@ -235,8 +236,8 @@ class Texture(object):
             gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vboid)
             gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, vData.tobytes())
             gl.glTexCoordPointer(2, gl.GL_FLOAT, vData[0].size(),
-                                 vData[0].position.size())
-            gl.glVertexPointer(2, gl.GL_FLOAT, vData[0].size(), 0)
+                                 c_void_p(vData[0].position.size()))
+            gl.glVertexPointer(2, gl.GL_FLOAT, vData[0].size(), None)
 
             gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.iboid)
             gl.glDrawElements(gl.GL_QUADS, 4, gl.GL_UNSIGNED_INT, None)
