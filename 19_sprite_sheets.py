@@ -398,7 +398,6 @@ class SpriteSheet(Texture):
 
     def render_sprite(self, index):
         if self.vertex_data_buffer is not None:
-            self.render_sprite2(index)
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
 
             gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
