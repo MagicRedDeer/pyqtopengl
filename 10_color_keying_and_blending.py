@@ -5,10 +5,28 @@ import OpenGL.GL as gl
 import OpenGL.GLU as glu
 import sys
 import os
-from collections import namedtuple
 
 
-LFRect = namedtuple('LFRect', 'x y w h')
+def power_of_two(num: int):
+    if num != 0:
+        num -= 1
+        num |= (num >> 1)   # Or first 2 bits
+        num |= (num >> 2)   # Or next 2 bits
+        num |= (num >> 4)   # Or next 4 bits
+        num |= (num >> 8)   # Or next 8 bits
+        num |= (num >> 16)  # Or next 16 bits
+        num += 1
+    return num
+
+
+class Rect(object):
+    __slots__ = ['x', 'y', 'w', 'h']
+
+    def __init__(self, x, y, w, h):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
 
 
 class Texture(object):
@@ -22,7 +40,7 @@ class Texture(object):
         self.image_width = 0
         self.image_height = 0
 
-    def loadTextureFromNP(self):
+    def loadTextureFromPixels(self):
         if self.tid == 0 and self.pixels is not None:
             self.height = self.pixels.shape[0]
             self.width = self.pixels.shape[1]
@@ -58,17 +76,6 @@ class Texture(object):
 
         return True
 
-    def power_of_two(self, num: int):
-        if num != 0:
-            num -= 1
-            num |= (num >> 1)   # Or first 2 bits
-            num |= (num >> 2)   # Or next 2 bits
-            num |= (num >> 4)   # Or next 4 bits
-            num |= (num >> 8)   # Or next 8 bits
-            num |= (num >> 16)  # Or next 16 bits
-            num += 1
-        return num
-
     def loadPixelsFromFile(self, path, with_alpha=True):
         self.pixels = cv2.imread(
                 path,
@@ -98,9 +105,9 @@ class Texture(object):
         self.pixels = cv2.copyMakeBorder(
                 self.pixels,
                 0,
-                self.power_of_two(self.pixels.shape[0]) - self.pixels.shape[0],
+                power_of_two(self.pixels.shape[0]) - self.pixels.shape[0],
                 0,
-                self.power_of_two(self.pixels.shape[1]) - self.pixels.shape[1],
+                power_of_two(self.pixels.shape[1]) - self.pixels.shape[1],
                 cv2.BORDER_CONSTANT, value=0)
 
         return True
@@ -113,7 +120,7 @@ class Texture(object):
         np.where(self.pixels == color_key, (0, 0, 0, 0), self.pixels)
         cv2.bitwise_and(self.pixels, self.pixels, mask=self.pixels[:, :, 3])
 
-        return self.loadTextureFromNP()
+        return self.loadTextureFromPixels()
 
     def loadMedia(self):
         if not self.loadTextureFromFileWithColorKey(
@@ -148,7 +155,7 @@ class Texture(object):
         self.height = self.width = 0
         self.image_height = self.image_height = 0
 
-    def render(self, x, y, clip: LFRect = None):
+    def render(self, x, y, clip: Rect = None):
         if self.tid != 0:
             gl.glLoadIdentity()
             gl.glTranslatef(x, y, 0)
@@ -208,7 +215,6 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
         self.widget = GLWidget(self)
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)

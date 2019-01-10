@@ -5,10 +5,16 @@ import OpenGL.GL as gl
 import OpenGL.GLU as glu
 import sys
 import os
-from collections import namedtuple
 
 
-LFRect = namedtuple('LFRect', 'x y w h')
+class Rect(object):
+    __slots__ = ['x', 'y', 'w', 'h']
+
+    def __init__(self, x, y, w, h):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
 
 
 class Texture(object):
@@ -78,7 +84,7 @@ class Texture(object):
             self.tid = 0
         self.height = self.width = 0
 
-    def render(self, x, y, clip: LFRect = None):
+    def render(self, x, y, clip: Rect = None):
         if self.tid != 0:
             gl.glLoadIdentity()
             gl.glTranslatef(x, y, 0)
@@ -197,10 +203,10 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
     def loadMedia(self):
         self.arrow_clips.clear()
-        self.arrow_clips.append(LFRect(0, 0, 128, 128))
-        self.arrow_clips.append(LFRect(128, 0, 128, 128))
-        self.arrow_clips.append(LFRect(0, 128, 128, 128))
-        self.arrow_clips.append(LFRect(128, 128, 128, 128))
+        self.arrow_clips.append(Rect(0, 0, 128, 128))
+        self.arrow_clips.append(Rect(128, 0, 128, 128))
+        self.arrow_clips.append(Rect(0, 128, 128, 128))
+        self.arrow_clips.append(Rect(128, 128, 128, 128))
         return self.texture.loadTextureFromFile(
                 os.path.join(os.path.dirname(__file__),
                              'images', 'arrows.png'))

@@ -10,7 +10,28 @@ import array
 from ctypes import c_void_p
 
 
-LFRect = namedtuple('LFRect', 'x y w h')
+def power_of_two(num: int):
+    if num != 0:
+        num -= 1
+        num |= (num >> 1)   # Or first 2 bits
+        num |= (num >> 2)   # Or next 2 bits
+        num |= (num >> 4)   # Or next 4 bits
+        num |= (num >> 8)   # Or next 8 bits
+        num |= (num >> 16)  # Or next 16 bits
+        num += 1
+    return num
+
+
+class MutableNamedTuple(object):
+    __slots__ = []
+
+    def __init__(self, *args):
+        for idx, name in enumerate(self.__slots__):
+            setattr(self, name, args[idx])
+
+    def __iter__(self):
+        for name in self.__slots__:
+            yield getattr(self, name)
 
 
 class Byteable(object):
@@ -26,16 +47,39 @@ class Byteable(object):
         return len(self.tobytes())
 
 
-class LVertexPos2D(namedtuple('_LVertexPos2D', 'x y'), Byteable):
-    pass
+class Rect(MutableNamedTuple):
+    __slots__ = ['x', 'y', 'w', 'h']
+
+    def __init__(self, x, y, w, h):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
 
 
-class LTexCoord(namedtuple('_LTexCoord', 's t'), Byteable):
-    pass
+class VertexPos2D(MutableNamedTuple, Byteable):
+    __slots__ = ['x', 'y']
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
 
-class LVertexData(namedtuple('_LVertexData', 'position tex_coord'),
-                  Byteable):
+class TexCoord(MutableNamedTuple, Byteable):
+    __slots__ = ['s', 't']
+
+    def __init__(self, s, t):
+        self.s = s
+        self.t = t
+
+
+class VertexData(MutableNamedTuple, Byteable):
+    __slots__ = ['position', 'tex_coord']
+
+    def __init__(self, position, tex_coord):
+        self.position = position
+        self.tex_coord = tex_coord
+
     def toarray(self):
         a = self.position.toarray()
         a.extend(self.tex_coord.toarray())
@@ -197,7 +241,7 @@ class Texture(object):
         self.height = self.width = 0
         self.image_height = self.image_height = 0
 
-    def render(self, x, y, clip: LFRect = None):
+    def render(self, x, y, clip: Rect = None):
         if self.tid != 0:
             self.applyTextureFiltering()
 
@@ -216,18 +260,18 @@ class Texture(object):
             gl.glTranslatef(x, y, 0)
 
             vData = BufferData()
-            vData.append(LVertexData(
-                    LVertexPos2D(0, 0),
-                    LTexCoord(tex_left, tex_top)))
-            vData.append(LVertexData(
-                    LVertexPos2D(quad_width, 0),
-                    LTexCoord(tex_right, tex_top)))
-            vData.append(LVertexData(
-                    LVertexPos2D(quad_width, quad_height),
-                    LTexCoord(tex_right, tex_bottom)))
-            vData.append(LVertexData(
-                    LVertexPos2D(0, quad_height),
-                    LTexCoord(tex_left, tex_bottom)))
+            vData.append(VertexData(
+                    VertexPos2D(0, 0),
+                    TexCoord(tex_left, tex_top)))
+            vData.append(VertexData(
+                    VertexPos2D(quad_width, 0),
+                    TexCoord(tex_right, tex_top)))
+            vData.append(VertexData(
+                    VertexPos2D(quad_width, quad_height),
+                    TexCoord(tex_right, tex_bottom)))
+            vData.append(VertexData(
+                    VertexPos2D(0, quad_height),
+                    TexCoord(tex_left, tex_bottom)))
 
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
             gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
@@ -433,7 +477,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(['Hey Hey'])
+    app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
     app.exec_()

@@ -5,10 +5,6 @@ import OpenGL.GL as gl
 import OpenGL.GLU as glu
 import sys
 import os
-from collections import namedtuple
-
-
-LFRect = namedtuple('LFRect', 'x y w h')
 
 
 def power_of_two(num: int):
@@ -21,6 +17,16 @@ def power_of_two(num: int):
         num |= (num >> 16)  # Or next 16 bits
         num += 1
     return num
+
+
+class Rect(object):
+    __slots__ = ['x', 'y', 'w', 'h']
+
+    def __init__(self, x, y, w, h):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
 
 
 class Texture(object):
@@ -92,7 +98,7 @@ class Texture(object):
         self.height = self.width = 0
         self.image_height = self.image_width = 0
 
-    def render(self, x, y, clip: LFRect = None):
+    def render(self, x, y, clip: Rect = None):
         if self.tid != 0:
             gl.glLoadIdentity()
             gl.glTranslatef(x, y, 0)

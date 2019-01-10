@@ -4,13 +4,49 @@ import numpy as np
 import OpenGL.GL as gl
 import OpenGL.GLU as glu
 import sys
-import os
-from collections import namedtuple
 import array
 
 
-LFRect = namedtuple('LFRect', 'x y w h')
-LVertexPos2D = namedtuple('LVertexPos2D', 'x y')
+def power_of_two(num: int):
+    if num != 0:
+        num -= 1
+        num |= (num >> 1)   # Or first 2 bits
+        num |= (num >> 2)   # Or next 2 bits
+        num |= (num >> 4)   # Or next 4 bits
+        num |= (num >> 8)   # Or next 8 bits
+        num |= (num >> 16)  # Or next 16 bits
+        num += 1
+    return num
+
+
+class MutableNamedTuple(object):
+    __slots__ = []
+
+    def __init__(self, *args):
+        for idx, name in enumerate(self.__slots__):
+            setattr(self, name, args[idx])
+
+    def __iter__(self):
+        for name in self.__slots__:
+            yield getattr(self, name)
+
+
+class Rect(MutableNamedTuple):
+    __slots__ = ['x', 'y', 'w', 'h']
+
+    def __init__(self, x, y, w, h):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+
+
+class VertexPos2D(MutableNamedTuple):
+    __slots__ = ['x', 'y']
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
 
 class Texture(object):
@@ -59,17 +95,6 @@ class Texture(object):
 
         return True
 
-    def power_of_two(self, num: int):
-        if num != 0:
-            num -= 1
-            num |= (num >> 1)   # Or first 2 bits
-            num |= (num >> 2)   # Or next 2 bits
-            num |= (num >> 4)   # Or next 4 bits
-            num |= (num >> 8)   # Or next 8 bits
-            num |= (num >> 16)  # Or next 16 bits
-            num += 1
-        return num
-
     def loadTextureFromFile(self, path, with_alpha=True):
         if not self.loadPixelsFromFile(path, with_alpha=with_alpha):
             return False
@@ -104,9 +129,9 @@ class Texture(object):
         self.pixels = cv2.copyMakeBorder(
                 self.pixels,
                 0,
-                self.power_of_two(self.pixels.shape[0]) - self.pixels.shape[0],
+                power_of_two(self.pixels.shape[0]) - self.pixels.shape[0],
                 0,
-                self.power_of_two(self.pixels.shape[1]) - self.pixels.shape[1],
+                power_of_two(self.pixels.shape[1]) - self.pixels.shape[1],
                 cv2.BORDER_CONSTANT, value=(255, 0, 0))
 
         return True
@@ -130,7 +155,7 @@ class Texture(object):
         self.height = self.width = 0
         self.image_height = self.image_height = 0
 
-    def render(self, x, y, clip: LFRect = None):
+    def render(self, x, y, clip: Rect = None):
         if self.tid != 0:
             self.applyTextureFiltering()
 
@@ -292,13 +317,13 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
     def loadMedia(self):
 
-        self.quad_vertices.extend(LVertexPos2D(
+        self.quad_vertices.extend(VertexPos2D(
                 self.SCREEN_WIDTH * 1/4, self.SCREEN_HEIGHT * 1/4))
-        self.quad_vertices.extend(LVertexPos2D(
+        self.quad_vertices.extend(VertexPos2D(
                 self.SCREEN_WIDTH * 3/4, self.SCREEN_HEIGHT * 1/4))
-        self.quad_vertices.extend(LVertexPos2D(
+        self.quad_vertices.extend(VertexPos2D(
                 self.SCREEN_WIDTH * 3/4, self.SCREEN_HEIGHT * 3/4))
-        self.quad_vertices.extend(LVertexPos2D(
+        self.quad_vertices.extend(VertexPos2D(
                 self.SCREEN_WIDTH * 1/4, self.SCREEN_HEIGHT * 3/4))
 
         return True
