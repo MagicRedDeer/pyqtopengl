@@ -17,9 +17,8 @@ class Texture(object):
         self.tid = 0
         self.width = 0
         self.height = 0
-        self.arrow_clips = []
 
-    def loadTextureFromNumpyRGBImage(self, image: np.array):
+    def loadTextureFromImage(self, image: np.array):
         self.height = image.shape[0]
         self.width = image.shape[1]
 
@@ -53,7 +52,7 @@ class Texture(object):
         if image is None:
             print('Unable to read image %s' % path, file=sys.strderr)
             return False
-        texture_loaded = self.loadTextureFromNumpyRGBImage(image)
+        texture_loaded = self.loadTextureFromImage(image)
 
         if not texture_loaded:
             print('Unable to load image %s' % path, file=sys.strderr)
@@ -71,18 +70,6 @@ class Texture(object):
         image[:, :, 0] = image[:, :, 1] = image[:, :, 2] = checkerboard.astype(
                 'uint8') * 255
         return image
-
-    def loadMedia(self):
-        self.arrow_clips.clear()
-
-        self.arrow_clips.append(LFRect(0, 0, 128, 128))
-        self.arrow_clips.append(LFRect(128, 0, 128, 128))
-        self.arrow_clips.append(LFRect(0, 128, 128, 128))
-        self.arrow_clips.append(LFRect(128, 128, 128, 128))
-
-        return self.loadTextureFromFile(
-                os.path.join(os.path.dirname(__file__),
-                             'images', 'arrows.png'))
 
     def freeTexture(self):
         # Delete Texture
@@ -131,7 +118,6 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
         self.widget = GLWidget(self)
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)
@@ -149,7 +135,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
     def __init__(self, parent):
         super().__init__(parent)
-        # self.start_timer()
+        self.arrow_clips = []
 
     def start_timer(self):
         self.timer = QtCore.QTimer(self)
@@ -180,7 +166,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         print(self.getOpenglInfo())
 
         self.texture = Texture()
-        self.texture.loadMedia()
+        self.loadMedia()
 
         # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
@@ -209,13 +195,23 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         gl.glVertex2f(self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
         gl.glVertex2f(-self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
 
+    def loadMedia(self):
+        self.arrow_clips.clear()
+        self.arrow_clips.append(LFRect(0, 0, 128, 128))
+        self.arrow_clips.append(LFRect(128, 0, 128, 128))
+        self.arrow_clips.append(LFRect(0, 128, 128, 128))
+        self.arrow_clips.append(LFRect(128, 128, 128, 128))
+        return self.texture.loadTextureFromFile(
+                os.path.join(os.path.dirname(__file__),
+                             'images', 'arrows.png'))
+
     def paintGL(self):
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
         self.texture.render(self.SCREEN_WIDTH/2-self.texture.width/2,
                             self.SCREEN_HEIGHT/2-self.texture.height/2)
 
-        clips = self.texture.arrow_clips
+        clips = self.arrow_clips
         self.texture.render(0, 0, clips[0])
         self.texture.render(self.SCREEN_WIDTH - clips[1].w, 0, clips[1])
         self.texture.render(0, self.SCREEN_HEIGHT - clips[2].h, clips[2])
@@ -232,7 +228,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(['Hey Hey'])
+    app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
     app.exec_()

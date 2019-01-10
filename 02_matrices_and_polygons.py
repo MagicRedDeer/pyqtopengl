@@ -8,13 +8,9 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
-
         self.widget = GLWidget(self)
-
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)
-        self.mainLayout.addWidget(self.button)
         self.setLayout(self.mainLayout)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent):
@@ -36,7 +32,6 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
     color_mode = COLOR_MODE_CYAN
     projection_scale = 2
-    MAX_COUNT = 5
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -72,9 +67,6 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
         gl.glClearColor(0.3, 0.1, 0.3, 1)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-        # gl.glShadeModel(gl.GL_FLAT)
-        # gl.glEnable(gl.GL_DEPTH_TEST)
-        # gl.glEnable(gl.GL_CULL_FACE)
 
         error = gl.glGetError()
         if not error == gl.GL_NO_ERROR:
@@ -116,7 +108,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
         gl.glColor3f(1.0, 1.5, 0.0)
 
-        gl.glViewport(0, 0, self.SCREEN_WIDTH//2, self.SCREEN_HEIGHT//2)
+        gl.glViewport(0, 0, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
 
         if self.color_mode == self.COLOR_MODE_CYAN:
             gl.glBegin(gl.GL_QUADS)
@@ -153,7 +145,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(['Hey Hey'])
+    app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
     app.exec_()

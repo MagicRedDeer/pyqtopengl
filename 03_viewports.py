@@ -8,13 +8,9 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
-
         self.widget = GLWidget(self)
-
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)
-        self.mainLayout.addWidget(self.button)
         self.setLayout(self.mainLayout)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent):
@@ -221,7 +217,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(['Hey Hey'])
+    app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
     app.exec_()

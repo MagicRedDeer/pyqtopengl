@@ -14,7 +14,7 @@ class Texture(object):
         self.width = 0
         self.height = 0
 
-    def loadTextureFromNumpyRGBImage(self, image: np.array):
+    def loadTextureFromImage(self, image: np.array):
         self.height = image.shape[0]
         self.width = image.shape[1]
 
@@ -48,7 +48,7 @@ class Texture(object):
         if image is None:
             print('Unable to read image %s' % path, file=sys.strderr)
             return False
-        texture_loaded = self.loadTextureFromNumpyRGBImage(image)
+        texture_loaded = self.loadTextureFromImage(image)
 
         if not texture_loaded:
             print('Unable to load image %s' % path, file=sys.strderr)
@@ -66,10 +66,6 @@ class Texture(object):
         image[:, :, 0] = image[:, :, 1] = image[:, :, 2] = checkerboard.astype(
                 'uint8') * 255
         return image
-
-    def loadMedia(self):
-        return self.loadTextureFromFile(
-                os.path.join(os.path.dirname(__file__), 'images', 'atile.jpg'))
 
     def freeTexture(self):
         # Delete Texture
@@ -101,7 +97,6 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
         self.widget = GLWidget(self)
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)
@@ -150,7 +145,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         print(self.getOpenglInfo())
 
         self.texture = Texture()
-        self.texture.loadMedia()
+        self.loadMedia()
 
         # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
@@ -173,11 +168,9 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
         return True
 
-    def quad_vertices(self):
-        gl.glVertex2f(-self.SCREEN_WIDTH//4, -self.SCREEN_HEIGHT//4)
-        gl.glVertex2f(self.SCREEN_WIDTH//4, -self.SCREEN_HEIGHT//4)
-        gl.glVertex2f(self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
-        gl.glVertex2f(-self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
+    def loadMedia(self):
+        return self.texture.loadTextureFromFile(
+                os.path.join(os.path.dirname(__file__), 'images', 'atile.jpg'))
 
     def paintGL(self):
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
@@ -194,7 +187,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(['Hey Hey'])
+    app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
     app.exec_()

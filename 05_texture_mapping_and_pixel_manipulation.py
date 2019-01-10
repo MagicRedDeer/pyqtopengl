@@ -1,8 +1,21 @@
 from PySide2 import QtWidgets, QtGui, QtCore
-import cv2
 import numpy as np
 import OpenGL.GL as gl
 import OpenGL.GLU as glu
+import sys
+
+
+def checkerboard():
+    first = [0, 0, 1, 1] * 8
+    second = [1, 1, 0, 0] * 8
+    checker = [first, first, second, second] * 8
+    checkerboard = np.kron(checker, np.ones((8, 8), dtype='uint8'))
+    image = np.zeros(
+            (checkerboard.shape[0], checkerboard.shape[1], 3),
+            dtype='uint8')
+    image[:, :, 0] = image[:, :, 1] = image[:, :, 2] = checkerboard.astype(
+            'uint8') * 255
+    return image
 
 
 class Texture(object):
@@ -12,16 +25,12 @@ class Texture(object):
         self.width = 0
         self.height = 0
 
-    def loadTextureFromNumpyRGBImage(self, image: np.array):
+    def loadTextureFromImage(self, image: np.array):
         self.height = image.shape[0]
         self.width = image.shape[1]
 
         assert(image.shape[2] == 3)
         assert(image.dtype == np.dtype('uint8'))
-
-        cv2.imshow('checkerboard', image)
-        cv2.waitKey()
-        cv2.destroyAllWindows()
 
         self.tid = gl.glGenTextures(1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
@@ -44,18 +53,6 @@ class Texture(object):
             return False
 
         return True
-
-    def loadMedia(self):
-        first = [0, 0, 1, 1] * 8
-        second = [1, 1, 0, 0] * 8
-        checker = [first, first, second, second] * 8
-        checkerboard = np.kron(checker, np.ones((8, 8), dtype='uint8'))
-        image = np.zeros(
-                (checkerboard.shape[0], checkerboard.shape[1], 3),
-                dtype='uint8')
-        image[:, :, 0] = image[:, :, 1] = image[:, :, 2] = checkerboard.astype(
-                'uint8') * 255
-        return self.loadTextureFromNumpyRGBImage(image)
 
     def freeTexture(self):
         # Delete Texture
@@ -132,11 +129,14 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         )
         return info
 
+    def loadMedia(self):
+        return self.texture.loadTextureFromImage(checkerboard())
+
     def initializeGL(self):
         print(self.getOpenglInfo())
 
         self.texture = Texture()
-        self.texture.loadMedia()
+        self.loadMedia()
 
         # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
@@ -158,12 +158,6 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
         return True
 
-    def quad_vertices(self):
-        gl.glVertex2f(-self.SCREEN_WIDTH//4, -self.SCREEN_HEIGHT//4)
-        gl.glVertex2f(self.SCREEN_WIDTH//4, -self.SCREEN_HEIGHT//4)
-        gl.glVertex2f(self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
-        gl.glVertex2f(-self.SCREEN_WIDTH//4, self.SCREEN_HEIGHT//4)
-
     def paintGL(self):
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
         x = (self.SCREEN_WIDTH - self.texture.width)/2
@@ -179,7 +173,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(['Hey Hey'])
+    app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
     app.exec_()

@@ -20,7 +20,16 @@ class Texture(object):
         self.pixels = None
         self.channels = 0
 
-    def loadTextureFromNP(self, image: np.array, pixel_type, store_type):
+    def loadTextureFromImage(self, image: np.array):
+        pixel_type = gl.GL_BGRA
+        store_type = gl.GL_RGBA
+
+        self.channels = image.shape[2] if len(image.shape) > 2 else 1
+        assert(self.channels in (3, 4))
+        if self.channels == 3:
+            pixel_type = gl.GL_BGR
+            store_type = gl.GL_RGB
+
         self.height = image.shape[0]
         self.width = image.shape[1]
 
@@ -46,65 +55,22 @@ class Texture(object):
 
         return True
 
-    def loadTextureFromNP_BGR(self, image: np.array):
-        self.channels = image.shape[2] if len(image.shape) > 2 else 1
-        assert(self.channels == 3)
-        assert(image.dtype == np.dtype('uint8'))
-        return self.loadTextureFromNP(image, gl.GL_BGR, gl.GL_RGB)
+    def loadTextureFromFile(self, path, ignore_alpha=False):
 
-    def loadTextureFromNP_BGRA(self, image: np.array):
-        self.channels = image.shape[2] if len(image.shape) > 2 else 1
-        assert(self.channels == 4)
-        assert(image.dtype == np.dtype('uint8'))
-        return self.loadTextureFromNP(image, gl.GL_BGRA, gl.GL_RGBA)
+        args = [path]
+        if not ignore_alpha:
+            args.append(cv2.IMREAD_UNCHANGED)
 
-    def loadTextureFromFile(self, path, with_alpha=True):
-        image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-
+        image = cv2.imread(*args)
         if image is None:
             print('Unable to read image %s' % path, file=sys.stderr)
             return False
-        texture_loaded = self.loadTextureFromNP_BGRA(image)
 
+        texture_loaded = self.loadTextureFromImage(image)
         if not texture_loaded:
             print('Unable to load image %s' % path, file=sys.stderr)
 
         return texture_loaded
-
-    def generateCheckerboard(self):
-        first = [0, 0, 1, 1] * 8
-        second = [1, 1, 0, 0] * 8
-        checker = [first, first, second, second] * 8
-        checkerboard = np.kron(checker, np.ones((8, 8), dtype='uint8'))
-        image = np.zeros(
-                (checkerboard.shape[0], checkerboard.shape[1], 3),
-                dtype='uint8')
-        image[:, :, 0] = image[:, :, 1] = image[:, :, 2] = checkerboard.astype(
-                'uint8') * 255
-        return image
-
-    def loadMedia(self):
-        if not self.loadTextureFromFile(
-                os.path.join(
-                    os.path.dirname(__file__), 'images', 'circle.png')):
-            print('Unable to load circle texture', file=sys.stderr)
-
-        self.lock()
-
-        alpha = self.pixels[:, :, 3].copy()
-
-        for x in range(10, min(self.width//2, self.height//2), 10):
-            self.pixels = cv2.rectangle(
-                    self.pixels,
-                    (self.height//2-x, self.width//2-x),
-                    (self.height//2+x, self.width//2+x),
-                    (255, 0, 0, 255), 2)
-
-        self.pixels = cv2.bitwise_and(self.pixels, self.pixels, mask=alpha)
-
-        self.unlock()
-
-        return True
 
     def freeTexture(self):
         # Delete Texture
@@ -174,7 +140,6 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
         self.widget = GLWidget(self)
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)
@@ -219,11 +184,37 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         )
         return info
 
+    def loadMedia(self):
+        if not self.texture.loadTextureFromFile(
+                os.path.join(
+                    os.path.dirname(__file__), 'images', 'circle.png')):
+            print('Unable to load circle texture', file=sys.stderr)
+
+        self.texture.lock()
+
+        pixels = self.texture.pixels
+        alpha = pixels[:, :, 3].copy()
+
+        for x in range(10,
+                       min(self.texture.width//2, self.texture.height//2), 10):
+            pixels = cv2.rectangle(
+                    pixels,
+                    (self.texture.height//2-x, self.texture.width//2-x),
+                    (self.texture.height//2+x, self.texture.width//2+x),
+                    (255, 0, 0, 255), 2)
+
+        pixels = cv2.bitwise_and(pixels, pixels, mask=alpha)
+
+        self.texture.pixels = pixels
+        self.texture.unlock()
+
+        return True
+
     def initializeGL(self):
         print(self.getOpenglInfo())
 
         self.texture = Texture()
-        self.texture.loadMedia()
+        self.loadMedia()
 
         # initialize projection matrix
         gl.glMatrixMode(gl.GL_PROJECTION)
@@ -268,7 +259,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(['Hey Hey'])
+    app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
     app.exec_()

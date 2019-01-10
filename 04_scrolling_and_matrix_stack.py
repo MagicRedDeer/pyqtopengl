@@ -9,10 +9,7 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
-
         self.widget = GLWidget(self)
-
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)
         self.setLayout(self.mainLayout)
@@ -119,9 +116,6 @@ class GLWidget(QtWidgets.QOpenGLWidget):
 
         # Pop default matrix onto current matrix
         gl.glMatrixMode(gl.GL_MODELVIEW)
-        gl.glPopMatrix()
-
-        gl.glPushMatrix()
 
         # red quad
         gl.glTranslatef(self.SCREEN_WIDTH/2, self.SCREEN_HEIGHT/2, 0)
