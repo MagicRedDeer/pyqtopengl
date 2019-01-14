@@ -41,7 +41,7 @@ class Texture(object):
         self.image_height = 0
         self.filtering = gl.GL_LINEAR
 
-    def loadTextureFromNP(self):
+    def loadTextureFromPixels(self):
         if self.tid == 0 and self.pixels is not None:
             self.height = self.pixels.shape[0]
             self.width = self.pixels.shape[1]
@@ -80,7 +80,7 @@ class Texture(object):
     def loadTextureFromFile(self, path, with_alpha=True):
         if not self.loadPixelsFromFile(path, with_alpha=with_alpha):
             return False
-        return self.loadTextureFromNP()
+        return self.loadTextureFromPixels()
 
     def loadPixelsFromFile(self, path, with_alpha=True):
         self.pixels = cv2.imread(
@@ -126,7 +126,7 @@ class Texture(object):
         np.where(self.pixels == color_key, (0, 0, 0, 0), self.pixels)
         cv2.bitwise_and(self.pixels, self.pixels, mask=self.pixels[:, :, 3])
 
-        return self.loadTextureFromNP()
+        return self.loadTextureFromPixels()
 
     def freeTexture(self):
         # Delete Texture
@@ -204,7 +204,6 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.button = QtWidgets.QPushButton('Test', self)
         self.widget = GLWidget(self)
         self.mainLayout = QtWidgets.QHBoxLayout()
         self.mainLayout.addWidget(self.widget)

@@ -4,10 +4,11 @@ import numpy as np
 import OpenGL.GL as gl
 import OpenGL.GLU as glu
 import sys
-import os
-from collections import namedtuple
 import array
 from ctypes import c_void_p
+from enum import Enum
+
+import matplotlib.pyplot as plt
 
 
 def power_of_two(num: int):
@@ -215,9 +216,9 @@ class Texture(object):
         self.pixels = cv2.copyMakeBorder(
                 self.pixels,
                 0,
-                self.power_of_two(self.pixels.shape[0]) - self.pixels.shape[0],
+                power_of_two(self.pixels.shape[0]) - self.pixels.shape[0],
                 0,
-                self.power_of_two(self.pixels.shape[1]) - self.pixels.shape[1],
+                power_of_two(self.pixels.shape[1]) - self.pixels.shape[1],
                 cv2.BORDER_CONSTANT, value=(255, 0, 0))
 
         return True
@@ -328,6 +329,310 @@ class Texture(object):
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
 
+class SpriteOrigin(Enum):
+    SPRITE_ORIGIN_CENTER = 1
+    SPRITE_ORIGIN_TOP_LEFT = 2
+    SPRITE_ORIGIN_BOTTOM_LEFT = 3
+    SPRITE_ORIGIN_TOP_RIGHT = 4
+    SPRITE_ORIGIN_BOTTOM_RIGHT = 5
+
+
+class SpriteSheet(Texture):
+
+    def __init__(self):
+        self.vertex_data_buffer = None
+        self.index_buffers = None
+        self.clips = []
+        super().__init__()
+
+    def add_clip_sprite(self, new_clip: Rect):
+        self.clips.append(new_clip)
+        return len(self.clips)-1
+
+    def get_clip(self, index):
+        return self.clips[index]
+
+    def generate_data_buffer(
+            self, origin: SpriteOrigin = SpriteOrigin.SPRITE_ORIGIN_CENTER):
+        if self.tid != 0 and len(self.clips) > 0:
+            totalSprites = len(self.clips)
+            self.vertex_data_buffer = gl.glGenBuffers(1)
+            self.index_buffers = gl.glGenBuffers(totalSprites)
+
+            top = bottom = left = right = 0
+
+            vtx_data = BufferData()
+            for i in range(totalSprites):
+                sprite_indices = array.array('I')
+
+                for x in range(4):
+                    sprite_indices.append(i*4+x)
+
+                if origin == SpriteOrigin.SPRITE_ORIGIN_TOP_LEFT:
+                    top = 0
+                    bottom = self.clips[i].h
+                    left = 0
+                    right = self.clips[i].w
+                elif origin == SpriteOrigin.SPRITE_ORIGIN_TOP_RIGHT:
+                    top = 0
+                    bottom = self.clips[i].h
+                    left = -self.clips[i].w
+                    right = 0
+                elif origin == SpriteOrigin.SPRITE_ORIGIN_BOTTOM_RIGHT:
+                    top = -self.clips[i].h
+                    bottom = 0
+                    left = -self.clips[i].w
+                    right = 0
+                elif origin == SpriteOrigin.SPRITE_ORIGIN_BOTTOM_LEFT:
+                    top = -self.clips[i].h
+                    bottom = 0
+                    left = 0
+                    right = self.clips[i].w
+                elif origin == SpriteOrigin.SPRITE_ORIGIN_CENTER:
+                    top = -self.clips[i].h // 2
+                    bottom = self.clips[i].h // 2
+                    left = -self.clips[i].w // 2
+                    right = self.clips[i].w // 2 
+
+                # left top
+                vtx_data.append(VertexData(
+                    VertexPos2D(left, top),
+                    TexCoord(self.clips[i].x/self.width,
+                             self.clips[i].y/self.height)))
+
+                # right top
+                vtx_data.append(VertexData(
+                    VertexPos2D(right, top),
+                    TexCoord((self.clips[i].x + self.clips[i].w)/self.width,
+                             self.clips[i].y/self.height)))
+
+                # right bottom
+                vtx_data.append(VertexData(
+                    VertexPos2D(right, bottom),
+                    TexCoord((self.clips[i].x + self.clips[i].w)/self.width,
+                             (self.clips[i].y + self.clips[i].h)/self.height)))
+
+                # left bottom
+                vtx_data.append(VertexData(
+                    VertexPos2D(left, bottom),
+                    TexCoord(self.clips[i].x/self.width,
+                             (self.clips[i].y + self.clips[i].h)/self.height)))
+
+                gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER,
+                                self.index_buffers[i])
+                gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER,
+                                sprite_indices.tobytes(), gl.GL_STATIC_DRAW)
+
+            gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vertex_data_buffer)
+            gl.glBufferData(gl.GL_ARRAY_BUFFER, vtx_data.tobytes(),
+                            gl.GL_STATIC_DRAW)
+
+        else:
+            if self.tid == 0:
+                print('No textures to render with', file=sys.stderr)
+            if len(self.clips) == 0:
+                print('No clips to generate vertex data', file=sys.stderr)
+            return False
+        return True
+
+    def freeSheet(self):
+        if self.vertex_data_buffer is not None:
+            gl.glDeleteBuffers(np.array([self.vertex_data_buffer]))
+            self.vertex_data_buffer = None
+
+        if self.index_buffers is not None:
+            gl.glDeleteBuffers(np.array(self.index_buffers))
+            self.index_buffers = None
+
+        self.clips.clear()
+
+    def freeTexture(self):
+        self.freeSheet()
+        super().freeTexture()
+
+    def render_sprite2(self, index):
+
+        import struct
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vertex_data_buffer)
+        vdata_bytes = bytes(
+                gl.glGetBufferSubData(gl.GL_ARRAY_BUFFER, 0, 64 * 256))
+
+        floats = []
+        for x in range(0, len(vdata_bytes), 4):
+            floats.extend(struct.unpack('f', vdata_bytes[x: x+4]))
+
+        vData = BufferData()
+        for x in range(0, len(floats), 4):
+            vData.append(VertexData(
+                VertexPos2D(floats[x], floats[x+1]),
+                TexCoord(floats[x+2], floats[x+3])))
+
+        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.index_buffers[index])
+        idata_bytes = bytes(
+                gl.glGetBufferSubData(gl.GL_ELEMENT_ARRAY_BUFFER, 0, 16))
+        indices = []
+        for x in range(0, len(idata_bytes), 4):
+            indices.extend(struct.unpack('I', idata_bytes[x: x+4]))
+
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+        gl.glBegin(gl.GL_QUADS)
+        for x in indices:
+            gl.glTexCoord2f(*vData[x].tex_coord)
+            gl.glVertex2f(*vData[x].position)
+        gl.glEnd()
+
+    def render_sprite(self, index):
+        if self.vertex_data_buffer is not None:
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+
+            gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+            gl.glEnableClientState(gl.GL_TEXTURE_COORD_ARRAY)
+
+            gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vertex_data_buffer)
+            gl.glTexCoordPointer(2, gl.GL_FLOAT, 16, c_void_p(8))
+            gl.glVertexPointer(2, gl.GL_FLOAT, 16, None)
+
+            gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER,
+                            self.index_buffers[index])
+            gl.glDrawElements(gl.GL_QUADS, 4, gl.GL_UNSIGNED_INT, None)
+
+            gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+            gl.glDisableClientState(gl.GL_TEXTURE_COORD_ARRAY)
+        else:
+            print('no buffer has been initialted', file=sys.stderr)
+
+
+class Font(SpriteSheet):
+
+    def __init__(self):
+        self.space = 0
+        self.line_height = 0
+        self.new_line = 0
+        super().__init__()
+
+    def freeFont(self):
+        self.freeTexture()
+
+        self.space = 0
+        self.line_height = 0
+        self.new_line = 0
+
+    def loadBitmap(self, path: str):
+        success = True
+        black_pixel = (0, 0, 0)
+
+        self.freeFont()
+
+        if self.loadPixelsFromFile(path):
+            cellw = self.image_width // 16
+            cellh = self.image_width // 16
+
+            top = cellw
+            bottom = 0
+            a_bottom = 0
+
+            current_char = 0
+
+            # parsing 16 X 16 cells of equal size
+            for row in range(16):
+                for col in range(16):
+                    bx = cellw * col
+                    by = cellh * row
+                    cell = self.pixels[by:by+cellh, bx:bx+cellw, :]
+
+                    # get cell bounds
+                    nonblack = np.any(cell != black_pixel, axis=-1).nonzero()
+                    try:
+                        left, _top = np.min(nonblack, axis=1)
+                        right, _bottom = np.max(nonblack, axis=1)
+                    except ValueError:
+                        left = right = 0
+                        _top, _bottom = cellh, 0
+
+                    next_clip = Rect(bx + left, by,
+                                     right - left + 1, cellh)
+
+                    if _top < top:
+                        top = _top
+
+                    if ord('A') == current_char:
+                        a_bottom = _bottom
+
+                    if _bottom > bottom:
+                        bottom = _bottom
+
+                    self.clips.append(next_clip)
+                    current_char += 1
+
+            for clip in self.clips:
+                clip.y += top
+                clip.h -= top
+
+            # Use alpha channel for blending
+            pixels = np.zeros((self.pixels.shape[0], self.pixels.shape[1], 4))
+            pixels[:, :, 3] = cv2.cvtColor(self.pixels, cv2.COLOR_BGR2GRAY)
+            pixels[:, :, 1:3] = 255
+
+            if self.loadTextureFromPixels():
+                if not self.generate_data_buffer(
+                        SpriteOrigin.SPRITE_ORIGIN_TOP_LEFT):
+                    print('Unable to create vertex buffer from pixels',
+                          file=sys.stderr)
+            else:
+                print('Unable to load texture from pixels', file=sys.stderr)
+
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S,
+                               gl.GL_CLAMP_TO_BORDER)
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
+                               gl.GL_CLAMP_TO_BORDER)
+
+            self.space = cellw / 2
+            self.new_line = a_bottom - top
+            self.line_height = bottom - top
+        else:
+            print('Could not load bitmap font image: %s' % path,
+                  file=sys.stderr)
+            success = False
+        return success
+
+    def renderText(self, x: float, y: float, text: str):
+        if self.tid:
+            dx, dy = x, y
+
+            gl.glTranslatef(x, y, 0)
+
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.tid)
+            gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+            gl.glEnableClientState(gl.GL_TEXTURE_COORD_ARRAY)
+
+            gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vertex_data_buffer)
+            vdata = VertexData(VertexPos2D(0, 0), TexCoord(0, 0))
+            gl.glTexCoordPointer(2, gl.GL_FLOAT, vdata.size(),
+                                 c_void_p(vdata.position.size()))
+            gl.glVertexPointer(2, gl.GL_FLOAT, vdata.size(), None)
+
+            for char in text:
+                if char == ' ':
+                    gl.glTranslatef(self.space, 0, 0)
+                    dx += self.space
+                elif char == '\n':
+                    gl.glTranslatef(x-dx, self.new_line, 0)
+                    dy += self.new_line
+                    dx += x - dx
+                else:
+                    ascii_code = ord(char)
+                    gl.glBindBuffer(
+                            gl.GL_ELEMENT_ARRAY_BUFFER,
+                            self.index_buffers[ascii_code])
+                    gl.glDrawElements(gl.GL_QUADS, 4, gl.GL_UNSIGNED_INT, None)
+                    gl.glTranslatef(self.clips[ascii_code].w, 0, 0)
+                    dx += self.clips[ascii_code].w
+
+            gl.glDisableClientState(gl.GL_TEXTURE_COORD_ARRAY)
+            gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+
+
 class MainWindow(QtWidgets.QWidget):
 
     def __init__(self):
@@ -354,6 +659,8 @@ class GLWidget(QtWidgets.QOpenGLWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.texture = Texture()
+        self.sprites = SpriteSheet()
+        self.font = Font()
         self.texX = self.texY = 0
         self._wraptype = 0
         # self.start_timer()
@@ -421,10 +728,8 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         return info
 
     def loadMedia(self):
-        if not self.texture.loadTextureFromFile(
-                os.path.join(
-                    os.path.dirname(__file__), 'images', 'opengl.jpg')):
-            print('Unable to load opengl texture', file=sys.stderr)
+        if not self.font.loadBitmap('images/cells.png'):
+            print('Unable to load bitmap image', file=sys.stderr)
             return False
         return True
 
@@ -443,7 +748,7 @@ class GLWidget(QtWidgets.QOpenGLWidget):
         gl.glLoadIdentity()
 
         # initializeGL clear color
-        gl.glClearColor(0, 1, 0, 1)
+        gl.glClearColor(0, 0, 0, 0)
         gl.glEnable(gl.GL_TEXTURE_2D)
 
         # Set blending
@@ -462,10 +767,11 @@ class GLWidget(QtWidgets.QOpenGLWidget):
     def paintGL(self):
 
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-
         gl.glLoadIdentity()
-        self.texture.render(self.SCREEN_WIDTH/2-self.texture.image_width/2,
-                            self.SCREEN_HEIGHT/2-self.texture.image_height/2)
+
+        gl.glColor3f(1, 0, 0)
+        self.font.renderText(
+                0, 0, 'The quick brown fox jumps\nover the lazy dog')
 
         gl.glFlush()
 
